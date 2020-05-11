@@ -9,6 +9,7 @@ using System.Runtime.Serialization.Formatters.Binary;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 
 namespace EquityTrading.Server
 {
@@ -16,6 +17,13 @@ namespace EquityTrading.Server
     {
         private static ConcurrentDictionary<string, User> _tradeUsers = new ConcurrentDictionary<string, User>();
         private static ConcurrentDictionary<OrderType, ConcurrentDictionary<string, HashSet<Order>>> _tradeOrders = new ConcurrentDictionary<OrderType, ConcurrentDictionary<string, HashSet<Order>>>();
+        private TaskFactory ctxTaskFactory;
+
+        public OrderBook()
+        {
+            ctxTaskFactory = new TaskFactory();
+        }
+
         public override Task OnDisconnected(bool stopCalled)
         {
             var userName = _tradeUsers.SingleOrDefault((c) => c.Value.ID == Context.ConnectionId).Key;
@@ -77,7 +85,7 @@ namespace EquityTrading.Server
                 var bidJson =JsonConvert.SerializeObject(bidData);
                 foreach (var tradeUser in _tradeUsers)
                 {
-                    Clients.Client(tradeUser.Value.ID).SendBidDepth(bidJson);
+                    ctxTaskFactory.StartNew(() => Clients.Client(tradeUser.Value.ID).SendBidDepth(bidJson));
                 }
             }
             if (_tradeOrders.ContainsKey(OrderType.Sell) && _tradeOrders[OrderType.Sell].ContainsKey(symbol))
@@ -93,7 +101,7 @@ namespace EquityTrading.Server
                 var askJson= JsonConvert.SerializeObject(askData);
                 foreach (var tradeUser in _tradeUsers)
                 {
-                    Clients.Client(tradeUser.Value.ID).SendAskDepth(askJson);
+                    ctxTaskFactory.StartNew(() => Clients.Client(tradeUser.Value.ID).SendAskDepth(askJson));
                 }
             }
         }
